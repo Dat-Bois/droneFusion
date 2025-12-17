@@ -1,0 +1,4 @@
+[submodule "mavcore"]
+	path = mavcore
+	url = https://github.com/uci-uav-forge/mavcore.git
+	branch = main
