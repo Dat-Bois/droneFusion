@@ -17,6 +17,7 @@ dependencies = [
     "mavproxy",
     "numpy==1.26.4",
     "scipy==1.15.3",
+    "pyusb",
     "opencv-python",
-    "ultralytics"
+    # "ultralytics" # Follow guide for this one
 ]
