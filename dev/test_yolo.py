@@ -6,8 +6,8 @@ import time
 from camera import Camera, Image
 
 # Create a camera object
-camera = Camera(bus_addr=[1,6], camera_type='port')
-camera.switch_model("yolo11n.pt")
+camera = Camera(bus_addr=[1,8], camera_type='optical_wide')
+camera.switch_model("yolo11s.pt")
 
 camera.start()
 
