@@ -4,16 +4,12 @@ from pathlib import Path
 import time
 
 #optical
-cap = cv2.VideoCapture("v4l2src device=/dev/video6 ! image/jpeg, width=1920, height=1080,framerate=30/1 ! jpegdec ! videoconvert ! video/x-raw, format=BGR ! appsink ")
+# cap = cv2.VideoCapture("v4l2src device=/dev/video0 ! image/jpeg, width=1920, height=1080,framerate=30/1 ! jpegdec ! videoconvert ! video/x-raw, format=BGR ! appsink ")
 
 #thermal
-# cap = cv2.VideoCapture("v4l2src device=/dev/video0 ! image/jpeg, width=640, height=480,framerate=30/1 ! jpegdec ! videoconvert ! video/x-raw, format=GRAY8 ! appsink ")
-'''
-1,4 narrow opt
-1,6 wide thermal
-1,7 narrow thermal
-1,8 wide opt
-'''
+cap = cv2.VideoCapture("v4l2src device=/dev/video4 ! image/jpeg, width=640, height=480,framerate=30/1 ! jpegdec ! videoconvert ! video/x-raw, format=GRAY8 ! appsink ")
+
+# cap = cv2.VideoCapture(2)
 
 CURRENT_FILE_PATH = Path(__file__).parent.absolute()
 IMG_FILE_PATH = CURRENT_FILE_PATH / "opt_wide"
@@ -23,6 +19,10 @@ if not IMG_FILE_PATH.exists():
 
 cv2.namedWindow("Camera", cv2.WINDOW_NORMAL) 
 cv2.resizeWindow("Camera", 640, 480)
+
+while not cap.isOpened():
+    print("Waiting for camera to open...")
+    time.sleep(1)
 
 i = 0
 while True:

@@ -5,39 +5,65 @@ import cv2
 import time
 from camera import Camera, Image
 
+'''
+1,4 optical_narrow
+1,6 thermal_wide
+1,7 thermal_narrow
+1,8 optical_wide
+'''
+
 # Create a camera object
-camera = Camera(bus_addr=[1,8], camera_type='optical_wide')
-camera.switch_model("yolo11s.pt")
+opt_camera = Camera(bus_addr=[1,8], camera_type='optical_wide', format='BGR', resolution=(1920,1080), fps=30, camera_name='optical_wide')
+therm_camera = Camera(bus_addr=[1,6], camera_type='optical_wide', format='GRAY8', resolution=(640,480), fps=30, camera_name='thermal_wide')
 
-camera.start()
+opt_camera.switch_model("yolo11n.pt")
+therm_camera.switch_model("yolo11n.pt")
 
-cv2.namedWindow("Yolo", cv2.WINDOW_NORMAL) 
-cv2.resizeWindow("Yolo", 1280, 720)
+opt_camera.start()
+therm_camera.start()
+time.sleep(2)
+
+cv2.namedWindow("Optical", cv2.WINDOW_NORMAL) 
+cv2.resizeWindow("Optical", 1280, 720)
+
+cv2.namedWindow("Thermal", cv2.WINDOW_NORMAL) 
+cv2.resizeWindow("Thermal", 1280, 720)
 pre_results = None
-fps = 0
-while camera.stream:
+fps = 0.0
+while opt_camera.stream and therm_camera.stream:
 
     pre_time = time.time()
 
-    frame : Image = camera.get_latest_frame()
-    if frame is None:
-        continue
- 
-    frame = frame.frame
-    frame = camera.draw_model_results(frame, confidence=0.6)
-    post_time = time.time() - pre_time
+    frame_opt : Image = opt_camera.get_latest_frame(undistort=True)
+    frame_therm : Image = therm_camera.get_latest_frame(undistort=False)
+    if frame_opt is not None:
+        frame_opt = frame_opt.frame
+        frame_opt = opt_camera.draw_model_results(frame_opt, confidence=0.6)
+        post_opt_time = time.time() - pre_time
+    if frame_therm is not None:
+        frame_therm = frame_therm.frame
+        frame_therm = therm_camera.draw_model_results(frame_therm, confidence=0.6)
+        post_therm_time = time.time() - pre_time
 
-    # Write FPS on the top left corner
-    new_frame_time = time.time()
-    new_fps = 1 / (new_frame_time - pre_time)
-    if new_fps < 60:
-        fps = new_fps
-    cv2.putText(frame, f"FPS: {fps:.2f}", (10, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
+    if frame_opt is not None:
+        # Write FPS on the top left corner
+        new_fps = 1 / post_opt_time
+        if new_fps < 60:
+            fps = new_fps
+        cv2.putText(frame_opt, f"FPS: {fps:.2f}", (10, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
+        cv2.imshow("Optical", frame_opt)
 
-    if frame is not None:
-        cv2.imshow("Yolo", frame)
+    if frame_therm is not None:
+        # Write FPS on the top left corner
+        new_fps = 1 / post_therm_time
+        if new_fps < 60:
+            fps = new_fps
+        cv2.putText(frame_therm, f"FPS: {fps:.2f}", (10, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
+        cv2.imshow("Thermal", frame_therm)
+
     if cv2.waitKey(1) & 0xFF == ord('q'):
         break
 
-camera.stop()
+opt_camera.stop()
+therm_camera.stop()
 cv2.destroyAllWindows()

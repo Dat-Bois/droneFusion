@@ -23,12 +23,13 @@ class Camera:
 
     def __init__(self, /, camera_id : int = 0, camera_name : str = "Unknown Camera", *, model : ML_Model = None, 
                  resolution : Tuple[int, int] = (1920, 1080), fps : int = 30, 
-                 video_path : str | Path = None, camera_type : str = 'port', 
-                 bus_addr : Tuple[int, int] = None):
+                 video_path : str | Path = None, camera_type : str = 'optical_wide', 
+                 bus_addr : Tuple[int, int] = None, format : str = 'BGR'):
 
         self._init_camera_path(camera_id, bus_addr)
         self.video_path = video_path
         self.resolution = resolution
+        self.format = format
         self.fps = fps
         self.model = model
         self.camera_name = camera_name
@@ -231,22 +232,31 @@ class Camera:
 
     def _camera_background_thread(self):
         if self.video_path == None:
-            capture_flag = f'v4l2src device={self.camera_path} ! image/jpeg, width={self.resolution[0]}, height={self.resolution[1]}, framerate={self.fps}/1 ! jpegdec ! videoconvert ! video/x-raw, format=BGR ! appsink'
+            capture_flag = f'v4l2src device={self.camera_path} ! image/jpeg, width={self.resolution[0]}, height={self.resolution[1]}, framerate={self.fps}/1 ! jpegdec ! videoconvert ! video/x-raw, format={self.format} ! appsink'
             try:
                 self.cap = cv2.VideoCapture(capture_flag)
+                i=0
+                while not self.cap.isOpened() and i<5:
+                    print("Waiting for camera to open...")
+                    time.sleep(1)
+                    i+=1
+                if not self.cap.isOpened():
+                    raise Exception("Failed to open camera with GStreamer")
             except:
                 self._error("Failed to open camera using GStreamer; Defaulting to OpenCV")
                 self.cap = cv2.VideoCapture(self.camera_path)
             
-            self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, self.resolution[0])
-            self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self.resolution[1])
+            # self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, self.resolution[0])
+            # self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self.resolution[1])
         else:
             self.cap = cv2.VideoCapture(self.video_path)
         self.done_init = True
         while self.stream:
             with self.camera_lock:
-                ret, self.raw_frame = self.cap.read()
-                if not ret:
+                ret, raw_frame = self.cap.read()
+                if ret:
+                    self.raw_frame = cv2.cvtColor(raw_frame, cv2.COLOR_GRAY2BGR) if len(raw_frame.shape) == 2 else raw_frame
+                else:
                     self._error("Failed to capture image")
                     self.stream = False
                     break
