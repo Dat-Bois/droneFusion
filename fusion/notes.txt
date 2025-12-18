@@ -1,0 +1,34 @@
+General Strategy:
+
+Knowns: 
+ - Extrinics relative to each other.
+ - Optical intrinsics via calibration
+
+Unknowns:
+ - Thermal Instrincs (big issue)
+
+Steps:
+
+ 1. Run base yolo11n/s model for optical. Get bounding boxes and undistort their coordinates.
+ 2. Run Flir dataset model for thermal. Get bounding boxes and undistort their coordinates.
+ 3. Apply a homography transform to map thermal bounding boxes to optical frame.
+ 4. Match bounding boxes based on proximity and size similarity.
+ 5. Fuse bounding boxes by averaging coordinates and combining class probabilities.
+ Condition:
+    1. If there is no overlap match, but the bounding box from either camera is of high confidence, keep that box.
+ 
+ 6. Apply a clustering algorithm (e.g., DBSCAN) for grouping point clouds from the mmWave radar.
+ 7. For each cluster, compute the centroid and bounding box.
+ 8. Match radar clusters to fused camera bounding boxes based on proximity / overlap.
+ Condition:
+    1. If a radar cluster does not match any camera bounding box but has high confidence, keep that cluster as a separate detection.
+
+ 9. Final fused output includes bounding boxes from cameras and radar clusters.
+ 10. Based on camera intrinsics, estimate distance to each detected object using size priors and radar depth.
+ 
+ Tracking:
+ 1. Now with a set of 3D points, use an EKF to track objects over time. Use simple kinematic constant velocity model.
+ 2. Use mahalanbis distance for data association between frames.
+ 3. Update object states with new measurements from fused detections.
+ 4. Output tracked objects with position, velocity, and class label.
+ 5. Visualize results by projecting 3D bounding boxes back onto camera frames and overlaying radar points.
