@@ -27,7 +27,7 @@ Steps:
  10. Based on camera intrinsics, estimate distance to each detected object using size priors and radar depth.
  
  Tracking:
- 1. Now with a set of 3D points, use an EKF to track objects over time. Use simple kinematic constant velocity model.
+ 1. Now with a set of 3D points, use an KF to track objects over time. Use simple kinematic constant acceleration model.
  2. Use mahalanbis distance for data association between frames.
  3. Update object states with new measurements from fused detections.
  4. Output tracked objects with position, velocity, and class label.

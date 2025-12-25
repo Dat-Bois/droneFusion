@@ -18,6 +18,7 @@ dependencies = [
     "numpy",
     "scipy",
     "pyusb",
+    "filterpy",
 #   "opencv-python", # From source
 #   "ultralytics" # Follow guide for this one
 ]
