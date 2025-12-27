@@ -1,7 +1,10 @@
-import numpy as np
+import time
 import unittest
+import numpy as np
 import matplotlib.pyplot as plt
 from fusion.track import Track, PoseStamped
+
+VIS = False
 
 class TestTrackLogic(unittest.TestCase):
     def setUp(self):
@@ -63,14 +66,14 @@ def run_simulation():
     R = np.eye(3) * (noise_std**2)
     
     track_history = []
-    
+    start = time.time()
     for i in range(1, len(t_steps)):
         curr_time = t_steps[i]
         Z = np.array([meas_x[i], meas_y[i], meas_z[i]])
         tracker.update(Z, R, curr_time)
         pos = tracker.kf.x[:3].flatten()
         track_history.append(pos)
-
+    print(f"Kalman Time for {len(t_steps)} steps: {time.time() - start:.4f} seconds")
     track_history = np.array(track_history)
     
     gt_aligned = np.stack([gt_x[1:], gt_y[1:], gt_z[1:]], axis=1)
@@ -83,31 +86,32 @@ def run_simulation():
     print(f"Average Tracker Error (Filtered):    {track_error:.4f} m")
     print(f"Improvement: {(meas_error - track_error)/meas_error * 100:.1f}%")
 
-    fig = plt.figure(figsize=(12, 6))
-    
-    ax = fig.add_subplot(1, 2, 1, projection='3d')
-    ax.plot(gt_x, gt_y, gt_z, 'k--', label='Ground Truth', linewidth=2, alpha=0.6)
-    ax.scatter(meas_x, meas_y, meas_z, c='r', s=10, alpha=0.3, label='Noisy Measurements')
-    ax.plot(track_history[:,0], track_history[:,1], track_history[:,2], 'b-', linewidth=2, label='Filter Track')
-    
-    ax.set_title("3D Target Tracking (Helix)")
-    ax.set_xlabel("X (m)")
-    ax.set_ylabel("Y (m)")
-    ax.set_zlabel("Z (m)")
-    ax.legend()
-    
-    ax2 = fig.add_subplot(1, 2, 2)
-    ax2.plot(gt_x, gt_y, 'k--', label='Ground Truth')
-    ax2.scatter(meas_x, meas_y, c='r', s=10, alpha=0.3, label='Measurements')
-    ax2.plot(track_history[:,0], track_history[:,1], 'b-', linewidth=2, label='Filter Track')
-    ax2.set_title("Top-Down View (X-Y)")
-    ax2.set_xlabel("X (m)")
-    ax2.set_ylabel("Y (m)")
-    ax2.grid(True)
-    ax2.legend()
-    
-    plt.tight_layout()
-    plt.show()
+    if VIS:
+        fig = plt.figure(figsize=(12, 6))
+        
+        ax = fig.add_subplot(1, 2, 1, projection='3d')
+        ax.plot(gt_x, gt_y, gt_z, 'k--', label='Ground Truth', linewidth=2, alpha=0.6)
+        ax.scatter(meas_x, meas_y, meas_z, c='r', s=10, alpha=0.3, label='Noisy Measurements')
+        ax.plot(track_history[:,0], track_history[:,1], track_history[:,2], 'b-', linewidth=2, label='Filter Track')
+        
+        ax.set_title("3D Target Tracking (Helix)")
+        ax.set_xlabel("X (m)")
+        ax.set_ylabel("Y (m)")
+        ax.set_zlabel("Z (m)")
+        ax.legend()
+        
+        ax2 = fig.add_subplot(1, 2, 2)
+        ax2.plot(gt_x, gt_y, 'k--', label='Ground Truth')
+        ax2.scatter(meas_x, meas_y, c='r', s=10, alpha=0.3, label='Measurements')
+        ax2.plot(track_history[:,0], track_history[:,1], 'b-', linewidth=2, label='Filter Track')
+        ax2.set_title("Top-Down View (X-Y)")
+        ax2.set_xlabel("X (m)")
+        ax2.set_ylabel("Y (m)")
+        ax2.grid(True)
+        ax2.legend()
+        
+        plt.tight_layout()
+        plt.show()
 
     # print("\n--- Tracker History Samples ---")
     # for pose in tracker.history:
@@ -161,31 +165,32 @@ def run_simulation_linear():
     print(f"Average Tracker Error (Filtered):    {track_error:.4f} m")
     print(f"Improvement: {(meas_error - track_error)/meas_error * 100:.1f}%")
     
-    fig = plt.figure(figsize=(14, 6))
-    
-    ax = fig.add_subplot(1, 2, 1, projection='3d')
-    ax.plot(gt_x[1:], gt_y[1:], gt_z[1:], 'k--', label='Ground Truth (Parabola)', linewidth=2)
-    ax.scatter(meas_x[1:], meas_y[1:], meas_z[1:], c='r', s=10, alpha=0.2, label='Noisy Measurements')
-    ax.plot(track_history[:,0], track_history[:,1], track_history[:,2], 'b-', linewidth=2, label='Filter Output')
-    
-    ax.set_title("3D Projectile Motion")
-    ax.set_xlabel("X")
-    ax.set_ylabel("Y")
-    ax.set_zlabel("Z")
-    ax.legend()
+    if VIS:
+        fig = plt.figure(figsize=(14, 6))
+        
+        ax = fig.add_subplot(1, 2, 1, projection='3d')
+        ax.plot(gt_x[1:], gt_y[1:], gt_z[1:], 'k--', label='Ground Truth (Parabola)', linewidth=2)
+        ax.scatter(meas_x[1:], meas_y[1:], meas_z[1:], c='r', s=10, alpha=0.2, label='Noisy Measurements')
+        ax.plot(track_history[:,0], track_history[:,1], track_history[:,2], 'b-', linewidth=2, label='Filter Output')
+        
+        ax.set_title("3D Projectile Motion")
+        ax.set_xlabel("X")
+        ax.set_ylabel("Y")
+        ax.set_zlabel("Z")
+        ax.legend()
 
-    ax2 = fig.add_subplot(1, 2, 2)
-    ax2.plot(t_steps[1:], np.sqrt(cov_history[:,0]), label='X Uncertainty (std dev)')
-    ax2.plot(t_steps[1:], np.sqrt(cov_history[:,1]), label='Y Uncertainty (std dev)')
-    ax2.plot(t_steps[1:], np.sqrt(cov_history[:,2]), label='Z Uncertainty (std dev)')
-    ax2.set_title("Filter Convergence (P Matrix)")
-    ax2.set_xlabel("Time (s)")
-    ax2.set_ylabel("Standard Deviation (m)")
-    ax2.grid(True)
-    ax2.legend()
-    
-    plt.tight_layout()
-    plt.show()
+        ax2 = fig.add_subplot(1, 2, 2)
+        ax2.plot(t_steps[1:], np.sqrt(cov_history[:,0]), label='X Uncertainty (std dev)')
+        ax2.plot(t_steps[1:], np.sqrt(cov_history[:,1]), label='Y Uncertainty (std dev)')
+        ax2.plot(t_steps[1:], np.sqrt(cov_history[:,2]), label='Z Uncertainty (std dev)')
+        ax2.set_title("Filter Convergence (P Matrix)")
+        ax2.set_xlabel("Time (s)")
+        ax2.set_ylabel("Standard Deviation (m)")
+        ax2.grid(True)
+        ax2.legend()
+        
+        plt.tight_layout()
+        plt.show()
 
 if __name__ == '__main__':
     print("--- Running Unit Tests ---")

@@ -17,11 +17,12 @@ and methods to:
 '''
 
 class PoseStamped:
-    def __init__(self, timestamp : float, state : np.ndarray, mahalonobis : float, dist : float):
+    def __init__(self, timestamp : float, state : np.ndarray, mahalonobis : float, dist : float, bbox: List[float]=[1,1]):
         self.timestamp = timestamp
         self.state = state.copy()
         self.mahalonobis = mahalonobis
         self.dist = dist
+        self.bbox = bbox # 1m x 1m default box
 
     def __str__(self):
         return f"PoseStamped: \n \
@@ -103,13 +104,21 @@ class Track:
         F = self._state_transition(timestamp)
         Q = self._process_transition(timestamp)
         return predict(self.kf.x, self.kf.P, F, Q)
+    
+    def get_state(self, timestamp : float = None) -> Tuple[np.ndarray, np.ndarray]:
+        if self.is_mature():
+            return
+        if timestamp is not None:
+            x_pred, _ = self.predict(timestamp)
+            return PoseStamped(timestamp, x_pred, 0.0, 0.0, self.history[-1].bbox)
+        return self.history[-1]
 
-    def update(self, Z : np.ndarray, R : np.ndarray, timestamp : float):
+    def update(self, Z : np.ndarray, R : np.ndarray, timestamp : float, bbox : List[float]=[1,1]):
         Z = Z.reshape(3,1)
         self.kf.R = R
         if self.is_mature():
             m, r = self.stat_dists(Z, R, timestamp)
-            self.history.append(PoseStamped(timestamp, self.kf.x, m, r))
+            self.history.append(PoseStamped(timestamp, self.kf.x, m, r, bbox))
         self.kf.F = self._state_transition(timestamp)
         self.kf.Q = self._process_transition(timestamp)
         self.kf.predict()
