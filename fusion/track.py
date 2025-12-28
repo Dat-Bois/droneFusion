@@ -54,6 +54,7 @@ class Track:
 
         self.history : List[PoseStamped] = []
 
+    #TODO: Verify this makes sense
     def stat_dists(self, Z : np.ndarray, R : np.ndarray, timestamp : float) -> Tuple[float, float]:
         """ Returns the Mahalanobis distance and "real dist" between the measurement and the predicted state. """
         F = self._state_transition(timestamp)

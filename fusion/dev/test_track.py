@@ -4,7 +4,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from fusion.track import Track, PoseStamped
 
-VIS = False
+VIS = True
 
 class TestTrackLogic(unittest.TestCase):
     def setUp(self):
@@ -165,6 +165,12 @@ def run_simulation_linear():
     print(f"Average Tracker Error (Filtered):    {track_error:.4f} m")
     print(f"Improvement: {(meas_error - track_error)/meas_error * 100:.1f}%")
     
+    t = input("\nPress t to print track history or enter to skip...")
+    if t.lower() == 't':
+        print("\n--- Tracker History Samples ---")
+        for pose in tracker.history:
+            print(pose)
+
     if VIS:
         fig = plt.figure(figsize=(14, 6))
         
