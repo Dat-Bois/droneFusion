@@ -1,6 +1,7 @@
+import time
 import numpy as np
 from typing import List, Tuple
-from queue import PriorityQueue
+from queue import PriorityQueue, Empty
 from threading import Thread, Lock
 from fusion import Track, PoseStamped
 
@@ -21,7 +22,7 @@ General flow (runs in thread):
         - For each active track, compute stat and real dist based on time with measurement
         - If both dists are below threshold, associate measurement to track
             - Else create new track
-        - If measurement works with multiple trakcs, choose the one with lowest stat dist (this can be expanded to MHT later)
+        - If measurement works with multiple tracks, choose the one with lowest stat dist (this can be expanded to MHT later)
         - Update track with measurement
 
 Callable functions:
@@ -58,27 +59,28 @@ class Tracker:
         self.start_tracker()
 
     def start_tracker(self):
-        if not self._running:
-            self._running = True
-            self._tracker_thread = Thread(target=self._tracker_loop)
-            self._tracker_thread.start()
-            print("Tracker started.")
-        else:
-            print("Tracker already running.")
+        with self._lock:
+            if not self._running:
+                self._running = True
+                self._tracker_thread = Thread(target=self._tracker_loop)
+                self._tracker_thread.start()
+                print("Tracker started.")
+            else:
+                print("Tracker already running.")
 
     def stop_tracker(self):
         """ Stops the tracker and clears all tracks. """
-        if self._running:
-            self._running = False
+        self._running = False
+        if self._tracker_thread is not None:
             self._tracker_thread.join()
+            self._tracker_thread = None
             print("Tracker stopped.")
         else:
             print("Tracker is not running.")
 
     def update(self, measurement : Measurement):
         """ Adds a new measurement to the queue for processing. """
-        with self._lock:
-            self._measurements.put((measurement.timestamp, measurement))
+        self._measurements.put((measurement.timestamp, measurement))
 
     def get_latest_tracks(self, timestamp : float = None) -> List[PoseStamped]:
         """ Returns the latest PoseStamped for each mature active track. """
@@ -93,15 +95,16 @@ class Tracker:
     def get_active_tracks(self) -> List[Track]:
         """ Returns the list of active tracks. """
         with self._lock:
-            return self.active_tracks.copy()
+            return list(self.active_tracks)
         
     def get_stored_tracks(self) -> List[Track]:
         """ Returns the list of stored tracks. """
         with self._lock:
-            return self.stored_tracks.copy()
+            return list(self.stored_tracks)
         
     def _ageout_tracks(self, current_time : float):
         """ Moves inactive mature tracks to stored tracks. """
+        if current_time is None: return
         to_remove : set[Track] = set()
         for track in self.active_tracks:
             if (current_time - track.last_update) > self._max_inactive_time:
@@ -114,25 +117,29 @@ class Tracker:
     def _tracker_loop(self):
         """ Main tracker loop running in a separate thread. """
         while self._running:
-            with self._lock:
-                if self.active_tracks:
+            try:
+                timestamp, measurement = self._measurements.get(timeout=1.0)
+            except Empty:
+                with self._lock:
                     self._ageout_tracks(self._last_measurement_time)
-                while not self._measurements.empty():
-                    timestamp, measurement = self._measurements.get()
-                    self._last_measurement_time = timestamp if self._last_measurement_time is None else max(self._last_measurement_time, timestamp)
-                    best_track = None
-                    for track in self.active_tracks:
-                        m_dist, r_dist = track.stat_dists(measurement.pose, measurement.R, timestamp)
-                        if m_dist < self._max_stat_dist and r_dist < self._max_real_dist:
-                            if best_track is None:
+                time.sleep(0.1)
+                continue
+            self._last_measurement_time = timestamp if self._last_measurement_time is None else max(self._last_measurement_time, timestamp)
+            with self._lock:
+                self._ageout_tracks(self._last_measurement_time)
+                best_track = None
+                for track in self.active_tracks:
+                    m_dist, r_dist = track.stat_dists(measurement.pose, measurement.R, timestamp)
+                    if m_dist < self._max_stat_dist and r_dist < self._max_real_dist:
+                        if best_track is None:
+                            best_track = (m_dist, r_dist, track)
+                        else:
+                            if m_dist < best_track[0]:
                                 best_track = (m_dist, r_dist, track)
-                            else:
-                                if m_dist < best_track[0]:
-                                    best_track = (m_dist, r_dist, track)
-                    if best_track is not None:
-                        best_track = best_track[2]
-                        best_track.update(measurement.pose, measurement.R, timestamp, measurement.bbox)
-                    else:
-                        new_track = Track(measurement.pose, timestamp)
-                        new_track.update(measurement.pose, measurement.R, timestamp, measurement.bbox)
-                        self.active_tracks.append(new_track)
+                if best_track is not None:
+                    best_track = best_track[2]
+                    best_track.update(measurement.pose, measurement.R, timestamp, measurement.bbox)
+                else:
+                    new_track = Track(measurement.pose, timestamp)
+                    new_track.update(measurement.pose, measurement.R, timestamp, measurement.bbox)
+                    self.active_tracks.append(new_track)
