@@ -17,21 +17,30 @@ and methods to:
 '''
 
 class PoseStamped:
-    def __init__(self, timestamp : float, state : np.ndarray, mahalonobis : float, dist : float, bbox: List[float]=[1,1]):
+    def __init__(self, timestamp : float, tid: int, state : np.ndarray,
+                        mahalonobis : float, dist : float, 
+                        bbox: List[float]=[1,1]):
         self.timestamp = timestamp
         self.state = state.copy()
         self.mahalonobis = mahalonobis
         self.dist = dist
         self.bbox = bbox # 1m x 1m default box
+        self.track_id = tid
+
+    def copy(self):
+        return PoseStamped(self.timestamp, self.track_id, self.state.copy(), self.mahalonobis, self.dist, self.bbox.copy())
 
     def __str__(self):
-        return f"PoseStamped: \n \
+        return f"PoseStamped, tid={self.track_id}: \n \
         t={self.timestamp}, \n \
         mahalonobis={self.mahalonobis}, \n \
         dist={self.dist} \n \
         state={self.state.flatten()}"
 
 class Track:
+
+    track_count = 0
+
     def __init__(self, initial_measurement : np.ndarray, timestamp : float):
         self.kf = KalmanFilter(dim_x=9, dim_z=3)
         # Measurement Matrix
@@ -48,11 +57,13 @@ class Track:
         # Measurement Noise
         self.kf.R *= 5.0
 
+        self.id = self.track_count  # unique identifier
         self.last_update = timestamp  # time since last update
         self.maturity = 0     # number of consecutive updates
         self._mature_threshold = 5
 
         self.history : List[PoseStamped] = []
+        self.track_count += 1
 
     #TODO: Verify this makes sense
     def stat_dists(self, Z : np.ndarray, R : np.ndarray, timestamp : float) -> Tuple[float, float]:
@@ -106,20 +117,20 @@ class Track:
         Q = self._process_transition(timestamp)
         return predict(self.kf.x, self.kf.P, F, Q)
     
-    def get_state(self, timestamp : float = None) -> Tuple[np.ndarray, np.ndarray]:
-        if self.is_mature():
+    def get_state(self, timestamp : float = None) -> PoseStamped:
+        if not self.is_mature():
             return
         if timestamp is not None:
             x_pred, _ = self.predict(timestamp)
-            return PoseStamped(timestamp, x_pred, 0.0, 0.0, self.history[-1].bbox)
-        return self.history[-1]
+            return PoseStamped(timestamp, self.id, x_pred, 0.0, 0.0, self.history[-1].bbox)
+        return self.history[-1].copy()
 
     def update(self, Z : np.ndarray, R : np.ndarray, timestamp : float, bbox : List[float]=[1,1]):
         Z = Z.reshape(3,1)
         self.kf.R = R
         if self.is_mature():
             m, r = self.stat_dists(Z, R, timestamp)
-            self.history.append(PoseStamped(timestamp, self.kf.x, m, r, bbox))
+            self.history.append(PoseStamped(timestamp, self.id, self.kf.x, m, r, bbox))
         self.kf.F = self._state_transition(timestamp)
         self.kf.Q = self._process_transition(timestamp)
         self.kf.predict()
