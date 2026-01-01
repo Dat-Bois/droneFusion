@@ -57,26 +57,29 @@ class Track:
         # Measurement Noise
         self.kf.R *= 5.0
 
-        self.id = self.track_count  # unique identifier
+        self.id = Track.track_count  # unique identifier
         self.last_update = timestamp  # time since last update
         self.maturity = 0     # number of consecutive updates
         self._mature_threshold = 5
 
         self.history : List[PoseStamped] = []
-        self.track_count += 1
+        Track.track_count += 1
 
     #TODO: Verify this makes sense
-    def stat_dists(self, Z : np.ndarray, R : np.ndarray, timestamp : float) -> Tuple[float, float]:
+    def stat_dists(self, Z : np.ndarray, R : np.ndarray, timestamp : float, debug=False) -> Tuple[float, float]:
         """ Returns the Mahalanobis distance and "real dist" between the measurement and the predicted state. """
         F = self._state_transition(timestamp)
         Q = self._process_transition(timestamp)
         Z = Z.reshape(3,1)
         X_pred, P_pred = predict(self.kf.x, self.kf.P, F, Q)
         X_pred = self.kf.H @ X_pred
-        xpv = (P_pred[0,0] + P_pred[0,3] + P_pred[3,3])
-        ypv = (P_pred[1,1] + P_pred[1,4] + P_pred[4,4])
-        zpv = (P_pred[2,2] + P_pred[2,5] + P_pred[5,5])
-        res = (Z - X_pred)**2
+        xpv = (P_pred[0,0]) #+ P_pred[0,3] + P_pred[3,3])
+        ypv = (P_pred[1,1]) #+ P_pred[1,4] + P_pred[4,4])
+        zpv = (P_pred[2,2]) #+ P_pred[2,5] + P_pred[5,5])
+        res : np.ndarray = (Z - X_pred)**2
+        if debug:
+            print(f'Debug Track ID {self.id}: Residuals {res.flatten()}, Predicted Pos {X_pred.flatten()}, Measured Pos {Z.flatten()}')
+            print(f'    Debug Track ID {self.id}: Predicted Variances xpv={xpv:.2f}, ypv={ypv:.2f}, zpv={zpv:.2f}')
         sd = (res[0,0] / (xpv + R[0,0])) + (res[1,0] / (ypv + R[1,1])) + (res[2,0] / (zpv + R[2,2]))
         rd = ((res[0,0]*xpv)/R[0,0]) + ((res[1,0]*ypv)/R[1,1]) + ((res[2,0]*zpv)/R[2,2])
         return sd, rd
@@ -110,8 +113,13 @@ class Track:
                 [1, 0, 0],
                 [0, 1, 0],
                 [0, 0, 1]])
+        # adaptive noise
+        if dt > 0.5:
+            current_q = self.Q * 0.1
+        else:
+            current_q = self.Q
         # 9x3 @ 3x3 @ 3x9 = 9x9
-        return G @ self.Q @ G.T
+        return G @ (current_q*dt) @ G.T
 
     def predict(self, timestamp : float):
         F = self._state_transition(timestamp)

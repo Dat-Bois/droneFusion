@@ -54,7 +54,7 @@ def T3D_to_2D(camera : Camera, position_3D : np.ndarray) -> np.ndarray:
 
 tracker = Tracker()
 
-opt_camera = Camera(bus_addr=[1,6], camera_type='optical_wide', format='BGR', resolution=(1920,1080), fps=30, camera_name='optical_wide')
+opt_camera = Camera(bus_addr=[1,5], camera_type='optical_wide', format='BGR', resolution=(1920,1080), fps=30, camera_name='optical_wide')
 opt_camera.switch_model("yolo11n.pt")
 opt_camera.start()
 time.sleep(2)
@@ -77,26 +77,29 @@ while opt_camera.stream:
                 position_3D = pose_stamped.state[:3].flatten()
                 pixel_coords = T3D_to_2D(opt_camera, position_3D)
                 u, v = int(pixel_coords[0]), int(pixel_coords[1])
-                # cv2.circle(frame_opt, (u, v), 10, (0, 255, 0), -1)
-                # cv2.putText(frame_opt, f"ID: {pose_stamped.track_id}", (u + 15, v), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
+                cv2.circle(frame_opt, (u, v), 10, (0, 255, 0), -1)
+                cv2.putText(frame_opt, f"ID: {pose_stamped.track_id}", (u + 15, v), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
+                # cv2.putText(frame_opt, f"R: {pose_stamped.dist:.2f}m", (u + 15, v + 20), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
+                # cv2.putText(frame_opt, f"S: {pose_stamped.mahalonobis:.2f}", (u + 15, v + 40), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
 
             post_opt_time = time.time() - pre_time
 
+        # opt_frame = opt_camera.draw_model_results(frame_opt, confidence=0.6)
+
+        # Write FPS on the top left corner
+        new_fps = 1 / post_opt_time
+        if new_fps < 60:
+            fps = new_fps
+        cv2.putText(frame_opt, f"FPS: {fps:.2f}", (10, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
+        cv2.imshow("Optical", frame_opt)
+
+        if cv2.waitKey(1) & 0xFF == ord('q'):
+            break
+    
     except Exception as e:
         print(e)
         # traceback.print_exc()
         break
-        # opt_frame = opt_camera.draw_model_results(frame_opt, confidence=0.6)
-
-        # Write FPS on the top left corner
-    #     new_fps = 1 / post_opt_time
-    #     if new_fps < 60:
-    #         fps = new_fps
-    #     cv2.putText(frame_opt, f"FPS: {fps:.2f}", (10, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
-    #     # cv2.imshow("Optical", frame_opt)
-
-    # # if cv2.waitKey(1) & 0xFF == ord('q'):
-    # #     break
 
 tracker.stop_tracker()
 opt_camera.stop()

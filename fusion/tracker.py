@@ -133,17 +133,19 @@ class Tracker:
                 self._ageout_tracks(self._last_measurement_time)
                 best_track = None
                 for track in self.active_tracks:
-                    m_dist, r_dist = track.stat_dists(measurement.pose, measurement.R, timestamp)
+                    m_dist, r_dist = track.stat_dists(measurement.pose, measurement.R, timestamp, debug=False)
                     if m_dist < self._max_stat_dist and r_dist < self._max_real_dist:
                         if best_track is None:
                             best_track = (m_dist, r_dist, track)
                         else:
                             if m_dist < best_track[0]:
                                 best_track = (m_dist, r_dist, track)
+                    else:
+                        # print(f"Rejected association: Track ID {track.id} with Mahalanobis {m_dist:.2f} and Real Dist {r_dist:.2f}")
+                        pass
                 if best_track is not None:
                     best_track = best_track[2]
                     best_track.update(measurement.pose, measurement.R, timestamp, measurement.bbox)
-                    print("Updated track ID", best_track.id, "with measurement at", timestamp)
                 else:
                     new_track = Track(measurement.pose, timestamp)
                     new_track.update(measurement.pose, measurement.R, timestamp, measurement.bbox)
