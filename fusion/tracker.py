@@ -41,6 +41,9 @@ class Measurement:
 
     def copy(self):
         return Measurement(self.timestamp, self.pose.copy(), self.R.copy(), self.bbox.copy())
+    
+    def __str__(self):
+        return f"Measurement at {self.timestamp:.2f}s: pose={self.pose}, R={self.R}, bbox={self.bbox}"
 
 class Tracker:
     def __init__(self):
@@ -89,7 +92,8 @@ class Tracker:
             for track in self.active_tracks:
                 if track.is_mature():
                     pose_stamped = track.get_state(timestamp)
-                    latest_tracks.append(pose_stamped)
+                    if pose_stamped is not None:
+                        latest_tracks.append(pose_stamped)
             return latest_tracks
         
     def get_active_tracks(self) -> List[Track]:
@@ -139,6 +143,7 @@ class Tracker:
                 if best_track is not None:
                     best_track = best_track[2]
                     best_track.update(measurement.pose, measurement.R, timestamp, measurement.bbox)
+                    print("Updated track ID", best_track.id, "with measurement at", timestamp)
                 else:
                     new_track = Track(measurement.pose, timestamp)
                     new_track.update(measurement.pose, measurement.R, timestamp, measurement.bbox)

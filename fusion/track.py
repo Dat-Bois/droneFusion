@@ -70,6 +70,7 @@ class Track:
         """ Returns the Mahalanobis distance and "real dist" between the measurement and the predicted state. """
         F = self._state_transition(timestamp)
         Q = self._process_transition(timestamp)
+        Z = Z.reshape(3,1)
         X_pred, P_pred = predict(self.kf.x, self.kf.P, F, Q)
         X_pred = self.kf.H @ X_pred
         xpv = (P_pred[0,0] + P_pred[0,3] + P_pred[3,3])
@@ -117,8 +118,8 @@ class Track:
         Q = self._process_transition(timestamp)
         return predict(self.kf.x, self.kf.P, F, Q)
     
-    def get_state(self, timestamp : float = None) -> PoseStamped:
-        if not self.is_mature():
+    def get_state(self, timestamp : float = None) -> PoseStamped | None:
+        if not self.is_mature() or len(self.history) == 0:
             return
         if timestamp is not None:
             x_pred, _ = self.predict(timestamp)

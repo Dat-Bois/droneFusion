@@ -19,7 +19,8 @@ class Image:
         self.frame = frame
         self.dimensions = (frame.shape[1], frame.shape[0])
 
-class Camera:
+#TODO: Fix sync issues with the camera and model thread 
+class Camera: 
 
     def __init__(self, /, camera_id : int = 0, camera_name : str = "Unknown Camera", *, model : ML_Model = None, 
                  resolution : Tuple[int, int] = (1920, 1080), fps : int = 30, 
@@ -69,6 +70,12 @@ class Camera:
         dist_calibration_path = pre_path / Path(f'{camera_type}/camera_distortion_matrix.txt')
         int_calibration_path = pre_path / Path(f'{camera_type}/camera_intrinsic_matrix.txt')
         self.undistort = Undistort(int_calibration_path, dist_calibration_path, self.resolution)
+
+    def undistort_points(self, points : np.ndarray) -> np.ndarray:
+        return self.undistort.undistort_points(points)
+
+    def get_camera_matrices(self) -> Tuple[np.ndarray, np.ndarray]:
+        return self.undistort.get_camera_matrices()
 
     def load_model_object(self, model_object : ML_Model):
         if not isinstance(model_object, ML_Model):
