@@ -18,6 +18,11 @@ class Undistort:
         self.new_camera_matrix, self.roi = cv2.getOptimalNewCameraMatrix(intrinsics, distortion, size, 1, size)
         self.mapx, self.mapy = cv2.initUndistortRectifyMap(intrinsics, distortion, None, self.new_camera_matrix, size, 5)
 
+        try:
+            self.cudaEnabled = cv2.cuda.getCudaEnabledDeviceCount() > 0
+        except:
+            self.cudaEnabled = False
+
     def get_camera_matrices(self) -> Tuple[np.ndarray, np.ndarray]:
         return self.intrinsics, self.new_camera_matrix
     
@@ -25,8 +30,8 @@ class Undistort:
         points_undistorted = cv2.undistortPoints(np.expand_dims(points, axis=1), self.intrinsics, self.dist, P=self.new_camera_matrix)
         return np.squeeze(points_undistorted, axis=1)
 
-    def undistort_only(self, frame, *, cuda = False):
-        if cuda:
+    def undistort_only(self, frame, *, no_cuda = False):
+        if self.cudaEnabled and not no_cuda:
             cuMapX = cv2.cuda.GpuMat(self.mapx)
             cuMapY = cv2.cuda.GpuMat(self.mapy)
             cuFrame = cv2.cuda.GpuMat(frame)
@@ -42,6 +47,6 @@ class Undistort:
         x, y, w, h = self.roi
         return ((x+w)-x, (y+h)-y)
 
-    def undistort(self, frame, *, with_cuda = False):
-        undistorted_img = self.undistort_only(frame, cuda = with_cuda)
+    def undistort(self, frame, *, no_cuda = False):
+        undistorted_img = self.undistort_only(frame, no_cuda = no_cuda)
         return self.crop_roi(undistorted_img)

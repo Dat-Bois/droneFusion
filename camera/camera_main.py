@@ -1,4 +1,6 @@
 import cv2
+import time
+import queue
 import numpy as np
 from pathlib import Path
 from typing import List, Tuple
@@ -6,7 +8,6 @@ from threading import Thread, Lock
 from camera.undistort import Undistort
 from camera.ml_model import ML_Model, Results
 from camera.find_camera import FindCamera
-import time
 
 '''
 This is the main camera class that will be used to interact with the camera.
@@ -19,7 +20,6 @@ class Image:
         self.frame = frame
         self.dimensions = (frame.shape[1], frame.shape[0])
 
-#TODO: Fix sync issues with the camera and model thread 
 class Camera: 
 
     def __init__(self, /, camera_id : int = 0, camera_name : str = "Unknown Camera", *, model : ML_Model = None, 
@@ -40,6 +40,9 @@ class Camera:
         self.run_model = False
 
         self.done_init = False
+
+        self.fps_queue = queue.Queue()
+        self.model_undistort = False
 
         self.raw_frame = None
         self.frame = None
@@ -186,25 +189,24 @@ class Camera:
             warmup_frame = np.random.randint(0, 255, (self.resolution[1], self.resolution[0], 3), dtype=np.uint8)
         else:
             warmup_frame = frame
-        warmup_frame = self.undistort.undistort(warmup_frame, with_cuda=True)
+        warmup_frame = self.undistort.undistort(warmup_frame)
         self._info("Undistortion warmed up...")
         return warmup_frame
 
-    def get_latest_frame(self, *, undistort = True, with_cuda = True) -> Image:
+    def get_latest_frame(self, undistort = True, *, no_cuda = False) -> Image:
+        self.model_undistort = undistort
+        if not self.done_init:
+            return None
         with self.camera_lock:
-            if not self.done_init:
-                return None
-            # If there is a raw frame use that and then reset it. 
-            # Otherwise check if there is a processed frame and use that. If not return None
             if self.raw_frame is not None:
-                frame = self.raw_frame
+                frame = self.raw_frame.copy()
                 self.raw_frame = None
             elif self.frame is not None:
                 return Image(self.frame)
             else:
                 return None
         if undistort:
-            frame = self.undistort.undistort(frame, with_cuda = with_cuda)
+            frame = self.undistort.undistort(frame, no_cuda = no_cuda)
         self.frame = frame
         return Image(frame)
     
@@ -226,15 +228,28 @@ class Camera:
                 cv2.rectangle(frame, (int(x1), int(y1)), (int(x2), int(y2)), (0, 255, 0), 2)
                 cv2.putText(frame, f"{names[cls_id]}: {conf:.2f}", (int(x1), int(y1)), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
         return frame
+
+    def fps_start(self):
+        self._fps_start_time = time.time()
+    
+    def fps_end(self) -> tuple[float, float]:
+        end_time = time.time()
+        new_fps = 1.0 / (end_time - self._fps_start_time)
+        if new_fps < 60:
+            self.fps_queue.put(new_fps)
+            if self.fps_queue.qsize() > 10:
+                self.fps_queue.get()
+        fps = sum(list(self.fps_queue.queue)) / (self.fps_queue.qsize()+1e-6)
+        return fps, (end_time - self._fps_start_time)
     
     def _model_background_thread(self):
         while self.run_model:
-            with self.camera_lock:
-                frame = self.frame
             if self.stream:
-                with self.model_lock:
-                    if self.model is not None:
-                        self.results = self.model.predict(frame)
+                image = self.get_latest_frame(undistort=self.model_undistort)
+                if image is not None:
+                    with self.model_lock:
+                        if self.model is not None:
+                            self.results = self.model.predict(image.frame)
             time.sleep(1/(self.fps))
 
     def _camera_background_thread(self):
@@ -259,14 +274,15 @@ class Camera:
             self.cap = cv2.VideoCapture(self.video_path)
         self.done_init = True
         while self.stream:
-            with self.camera_lock:
-                ret, raw_frame = self.cap.read()
-                if ret:
-                    self.raw_frame = cv2.cvtColor(raw_frame, cv2.COLOR_GRAY2BGR) if len(raw_frame.shape) == 2 else raw_frame
-                else:
-                    self._error("Failed to capture image")
-                    self.stream = False
-                    break
+            ret, raw_frame = self.cap.read()
+            if ret:
+                raw_frame = cv2.cvtColor(raw_frame, cv2.COLOR_GRAY2BGR) if len(raw_frame.shape) == 2 else raw_frame
+                with self.camera_lock:
+                    self.raw_frame = raw_frame
+            else:
+                self._error("Failed to capture image")
+                self.stream = False
+                break
             time.sleep(1/(self.fps))
 
         self.cap.release()

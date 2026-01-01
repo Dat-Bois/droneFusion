@@ -13,7 +13,7 @@ from camera import Camera, Image
 '''
 
 # Create a camera object
-opt_camera = Camera(bus_addr=[1,6], camera_type='optical_wide', format='BGR', resolution=(1920,1080), fps=30, camera_name='optical_wide')
+opt_camera = Camera(bus_addr=[1,5], camera_type='optical_wide', format='BGR', resolution=(1920,1080), fps=30, camera_name='optical_wide')
 # therm_camera = Camera(bus_addr=[1,7], camera_type='optical_wide', format='GRAY8', resolution=(640,480), fps=30, camera_name='thermal_wide')
 
 opt_camera.switch_model("yolo11n.pt")
@@ -28,37 +28,30 @@ cv2.resizeWindow("Optical", 1280, 720)
 
 # cv2.namedWindow("Thermal", cv2.WINDOW_NORMAL) 
 # cv2.resizeWindow("Thermal", 1280, 720)
-fps = 0.0
 frame_therm = None
 while opt_camera.stream: #and therm_camera.stream:
 
-    pre_time = time.time()
+    opt_camera.fps_start()
 
     frame_opt : Image = opt_camera.get_latest_frame(undistort=True)
     # frame_therm : Image = therm_camera.get_latest_frame(undistort=False)
     if frame_opt is not None:
         frame_opt = frame_opt.frame
-        # frame_opt = opt_camera.draw_model_results(frame_opt, confidence=0.6)
-        post_opt_time = time.time() - pre_time
+        frame_opt = opt_camera.draw_model_results(frame_opt, confidence=0.6)
+        opt_fps, _ = opt_camera.fps_end()
     if frame_therm is not None:
         frame_therm = frame_therm.frame
         # frame_therm = therm_camera.draw_model_results(frame_therm, confidence=0.6)
-        post_therm_time = time.time() - pre_time
+        # therm_fps, _ = therm_camera.fps_end()
 
     if frame_opt is not None:
         # Write FPS on the top left corner
-        new_fps = 1 / post_opt_time
-        if new_fps < 60:
-            fps = new_fps
-        cv2.putText(frame_opt, f"FPS: {fps:.2f}", (10, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
+        cv2.putText(frame_opt, f"FPS: {opt_fps:.2f}", (10, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
         cv2.imshow("Optical", frame_opt)
 
     if frame_therm is not None:
         # Write FPS on the top left corner
-        new_fps = 1 / post_therm_time
-        if new_fps < 60:
-            fps = new_fps
-        cv2.putText(frame_therm, f"FPS: {fps:.2f}", (10, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
+        cv2.putText(frame_therm, f"FPS: {therm_fps:.2f}", (10, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
         cv2.imshow("Thermal", frame_therm)
 
     if cv2.waitKey(1) & 0xFF == ord('q'):

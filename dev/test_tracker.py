@@ -62,7 +62,7 @@ time.sleep(2)
 fps = 0.0
 while opt_camera.stream:
     try:
-        pre_time = time.time()
+        opt_camera.fps_start()
         frame_opt : Image = opt_camera.get_latest_frame()
         if frame_opt is not None:
             frame_opt = frame_opt.frame
@@ -82,14 +82,9 @@ while opt_camera.stream:
                 # cv2.putText(frame_opt, f"R: {pose_stamped.dist:.2f}m", (u + 15, v + 20), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
                 # cv2.putText(frame_opt, f"S: {pose_stamped.mahalonobis:.2f}", (u + 15, v + 40), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
 
-            post_opt_time = time.time() - pre_time
+            fps, post_opt_time = opt_camera.fps_end()
 
         # opt_frame = opt_camera.draw_model_results(frame_opt, confidence=0.6)
-
-        # Write FPS on the top left corner
-        new_fps = 1 / post_opt_time
-        if new_fps < 60:
-            fps = new_fps
         cv2.putText(frame_opt, f"FPS: {fps:.2f}", (10, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
         cv2.imshow("Optical", frame_opt)
 
