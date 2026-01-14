@@ -13,7 +13,7 @@ from camera import Camera, Image
 '''
 
 # Create a camera object
-opt_camera = Camera(bus_addr=[1,5], camera_type='optical_wide', format='BGR', resolution=(1920,1080), fps=30, camera_name='optical_wide')
+opt_camera = Camera(bus_addr=[1,4], camera_type='optical_wide', format='BGR', resolution=(1920,1080), fps=30, camera_name='optical_wide')
 # therm_camera = Camera(bus_addr=[1,7], camera_type='optical_wide', format='GRAY8', resolution=(640,480), fps=30, camera_name='thermal_wide')
 
 opt_camera.switch_model("yolo11n.pt")
@@ -33,7 +33,7 @@ while opt_camera.stream: #and therm_camera.stream:
 
     opt_camera.fps_start()
 
-    frame_opt : Image = opt_camera.get_latest_frame(undistort=True)
+    frame_opt : Image = opt_camera.get_latest_frame(undistort=False)
     # frame_therm : Image = therm_camera.get_latest_frame(undistort=False)
     if frame_opt is not None:
         frame_opt = frame_opt.frame

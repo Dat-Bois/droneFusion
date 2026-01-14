@@ -1,0 +1,126 @@
+import cv2
+import time
+import pickle
+import pathlib
+import threading
+import queue
+from camera import Camera, Image
+from radar import MmWaveRadar
+
+'''
+Initializes and records the cameras and radar data to files for later processing.
+
+At 20hz every frame is saved to disk titled camera_name_timestamp
+At the same rate, radar data is saved to radar_timestamp.pkl
+'''
+
+SAVE_PATH = "logtest"
+save_radar = False
+FPS_LIMIT = 20
+
+running = False
+frame_queue = queue.Queue()
+
+def write_thread():
+    while running or not frame_queue.empty():
+        time.sleep(0.001)
+        try:
+            item = frame_queue.get(timeout=1)
+            if item is None:
+                continue
+            filename, data = item
+            if data is None:
+                continue
+            if isinstance(data, Image):
+                cv2.imwrite(filename, data.frame)
+            else:
+                with open(filename, 'wb') as f:
+                    pickle.dump(data, f)
+        except queue.Empty:
+            continue
+
+now = time.localtime()
+formatted_time = time.strftime("%m_%d_%H_%M", now)
+# Create folder for data
+SAVE_PATH = SAVE_PATH + f"/test_{formatted_time}/"
+pathlib.Path(SAVE_PATH).mkdir(parents=True, exist_ok=True)
+
+print(f"Saving data to: {SAVE_PATH}")
+
+# initialize cameras (specify bus addresses)
+cameras : list[Camera] = []
+opt_camera = Camera(bus_addr=[1,5], camera_type='optical_wide', format='BGR', resolution=(1920,1080), fps=30, camera_name='optical_wide')
+cameras.append(opt_camera)
+
+# optn_camera = Camera(bus_addr=[1,4], camera_type='optical_wide', format='BGR', resolution=(1920,1080), fps=30, camera_name='optical_narrow')
+# cameras.append(optn_camera)
+
+# therm_camera = Camera(bus_addr=[1,7], camera_type='optical_wide', format='GRAY8', resolution=(640,480), fps=30, camera_name='thermal_wide')
+# cameras.append(therm_camera)
+
+# thermn_camera = Camera(bus_addr=[1,7], camera_type='optical_wide', format='GRAY8', resolution=(640,480), fps=30, camera_name='thermal_narrow')
+# cameras.append(thermn_camera)
+
+# Start write thread
+running = True
+wt = threading.Thread(target=write_thread, daemon=True)
+wt.start()
+
+print("Starting cameras and radar...")
+# Start cameras
+for cam in cameras:
+    print(f"Starting camera: {cam.camera_name}")
+    cam.start()
+
+time.sleep(5)
+# Connect and start radar
+if save_radar:
+    radar = MmWaveRadar(cfg_path="/home/eesh/droneFusion/radar/configs/1843_3d.cfg", already_started=False, verbose=True)
+    radar.connect()
+    radar.configure()
+else:
+    print("Skipping radar initialization.")
+time.sleep(2)
+
+print("Recording data... (Press Ctrl+C to stop)")
+
+stop = False
+while True:
+    try:
+        for cam in cameras:
+            if not cam.stream:
+                stop = True
+                break
+        if stop:
+            break
+        start_time = time.time()
+        for cam in cameras:
+            frame : Image = cam.get_latest_frame(undistort=False)
+            if frame is not None:
+                timestamp = int(time.time() * 1e6) # microseconds
+                filename = SAVE_PATH + f"{cam.camera_name}_{timestamp}.png"
+                frame_queue.put((filename, frame))
+        if save_radar:
+            data = radar.get_frame()
+            if data is not None:
+                timestamp = int(time.time() * 1e6) # microseconds
+                filename = SAVE_PATH + f"radar_{timestamp}.pkl"
+                frame_queue.put((filename, data))
+        elapsed = time.time() - start_time
+        sleep_time = max(0, (1.0 / FPS_LIMIT) - elapsed)
+        time.sleep(sleep_time)
+                
+    except KeyboardInterrupt:
+        break
+
+for cam in cameras:
+    cam.stop()
+if save_radar:
+    radar.close()
+running = False
+print("Waiting for write queue to finish...")
+while not frame_queue.empty():
+    print(f"Frames remaining in queue: {frame_queue.qsize()}")
+    time.sleep(1)
+wt.join()
+print("Done.")

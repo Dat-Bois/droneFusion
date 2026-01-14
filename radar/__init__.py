@@ -1,1 +1,1 @@
-from radar_api import MmWaveRadar
+from .radar_api import MmWaveRadar

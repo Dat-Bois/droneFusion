@@ -10,8 +10,8 @@ logging.basicConfig(level=logging.INFO, format='[%(levelname)s] %(message)s')
 logger = logging.getLogger(__name__)
 
 try:
-    import parser_lib
-    import parseFrame
+    from . import parser_lib
+    from . import parseFrame
 except ImportError as e:
     logger.error(f"Failed to import parsing libraries. Ensure parser_lib.py and parseFrame.py are accessible. {e}")
     sys.exit(1)
