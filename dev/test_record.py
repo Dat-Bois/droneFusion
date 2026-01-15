@@ -14,15 +14,16 @@ At 20hz every frame is saved to disk titled camera_name_timestamp
 At the same rate, radar data is saved to radar_timestamp.pkl
 '''
 
-SAVE_PATH = "logtest"
+SAVE_PATH = "/media/eesh/RECORD"
 save_radar = False
 FPS_LIMIT = 20
 
+force_quit = False
 running = False
 frame_queue = queue.Queue()
 
 def write_thread():
-    while running or not frame_queue.empty():
+    while running or (not frame_queue.empty() and not force_quit):
         time.sleep(0.001)
         try:
             item = frame_queue.get(timeout=1)
@@ -32,7 +33,7 @@ def write_thread():
             if data is None:
                 continue
             if isinstance(data, Image):
-                cv2.imwrite(filename, data.frame)
+                cv2.imwrite(filename, data.frame, [cv2.IMWRITE_JPEG_QUALITY, 80])
             else:
                 with open(filename, 'wb') as f:
                     pickle.dump(data, f)
@@ -49,14 +50,14 @@ print(f"Saving data to: {SAVE_PATH}")
 
 # initialize cameras (specify bus addresses)
 cameras : list[Camera] = []
-opt_camera = Camera(bus_addr=[1,5], camera_type='optical_wide', format='BGR', resolution=(1920,1080), fps=30, camera_name='optical_wide')
+opt_camera = Camera(bus_addr=[1,4], camera_type='optical_wide', format='BGR', resolution=(1920,1080), fps=30, camera_name='optical_wide')
 cameras.append(opt_camera)
 
 # optn_camera = Camera(bus_addr=[1,4], camera_type='optical_wide', format='BGR', resolution=(1920,1080), fps=30, camera_name='optical_narrow')
 # cameras.append(optn_camera)
 
-# therm_camera = Camera(bus_addr=[1,7], camera_type='optical_wide', format='GRAY8', resolution=(640,480), fps=30, camera_name='thermal_wide')
-# cameras.append(therm_camera)
+therm_camera = Camera(bus_addr=[1,5], camera_type='optical_wide', format='GRAY8', resolution=(640,480), fps=30, camera_name='thermal_wide')
+cameras.append(therm_camera)
 
 # thermn_camera = Camera(bus_addr=[1,7], camera_type='optical_wide', format='GRAY8', resolution=(640,480), fps=30, camera_name='thermal_narrow')
 # cameras.append(thermn_camera)
@@ -72,7 +73,7 @@ for cam in cameras:
     print(f"Starting camera: {cam.camera_name}")
     cam.start()
 
-time.sleep(5)
+time.sleep(10)
 # Connect and start radar
 if save_radar:
     radar = MmWaveRadar(cfg_path="/home/eesh/droneFusion/radar/configs/1843_3d.cfg", already_started=False, verbose=True)
@@ -98,7 +99,7 @@ while True:
             frame : Image = cam.get_latest_frame(undistort=False)
             if frame is not None:
                 timestamp = int(time.time() * 1e6) # microseconds
-                filename = SAVE_PATH + f"{cam.camera_name}_{timestamp}.png"
+                filename = SAVE_PATH + f"{cam.camera_name}_{timestamp}.jpg"
                 frame_queue.put((filename, frame))
         if save_radar:
             data = radar.get_frame()
@@ -118,9 +119,13 @@ for cam in cameras:
 if save_radar:
     radar.close()
 running = False
-print("Waiting for write queue to finish...")
-while not frame_queue.empty():
-    print(f"Frames remaining in queue: {frame_queue.qsize()}")
-    time.sleep(1)
+print("Waiting for write queue to finish... (Ctrl+C again to force quit)")
+try:
+    while not frame_queue.empty():
+        print(f"Frames remaining in queue: {frame_queue.qsize()}")
+        time.sleep(1)
+except KeyboardInterrupt:
+    print("Force quitting...")
+    force_quit = True
 wt.join()
 print("Done.")
