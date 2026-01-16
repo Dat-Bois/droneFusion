@@ -98,6 +98,15 @@ else:
     print("Skipping radar initialization.")
 time.sleep(2)
 
+# Adding configuration info to save folder
+with open(SAVE_PATH + "config.txt", 'w') as f:
+    f.write(f"Using Cameras: {available_cams}\n")
+    f.write(f"Using Radar: {save_radar}\n")
+    f.write(f"Radar Config: {radar.cfg_path if save_radar else 'N/A'}\n")
+    f.write(f"FPS Limit: {FPS_LIMIT}\n")
+    f.write(f"Show Camera: {show_camera}\n")
+    f.write(f"Save Path: {SAVE_PATH}\n")
+
 print("Recording data... (Press Ctrl+C to stop)")
 
 stop = False
